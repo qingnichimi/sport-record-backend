@@ -101,7 +101,7 @@ public class StravaService {
         AccessTokenInfoVO accessTokenInfoVO = new AccessTokenInfoVO();
         if (responseBody != null) {
             redisTemplate.opsForValue()
-                .set(RedisKeyConstant.ACCESS_INFO, objectMapper.writeValueAsString(responseBody));
+                .set(RedisKeyConstant.ACCESS_INFO, responseBody);
             accessTokenInfoVO.setRefreshToken(responseBody.getRefreshToken());
             accessTokenInfoVO.setAccessToken(responseBody.getAccessToken());
             accessTokenInfoVO.setExpiresAt(responseBody.getExpiresAt());
