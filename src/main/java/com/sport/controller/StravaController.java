@@ -41,11 +41,7 @@ public class StravaController {
     @GetMapping("/athlete/activity/list")
     public CommonResult getActivities(@RequestParam(required = false, defaultValue = "1") int pageNum,
         @RequestParam(required = false, defaultValue = "999") int pageSize) {
-        try {
-            List<Activity> list = stravaService.getActivities(pageNum, pageSize, 0, 0);
-            return CommonResult.success(list);
-        } catch (Exception e) {
-            return CommonResult.failure("获取运动数据失败: " + e.getMessage());
-        }
+        List<Activity> list = stravaService.getActivities(pageNum, pageSize, 0, 0);
+        return CommonResult.success(list);
     }
 }

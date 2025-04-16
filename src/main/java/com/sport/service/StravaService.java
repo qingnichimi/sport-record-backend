@@ -151,6 +151,10 @@ public class StravaService {
     public void getActivitiesTask() {
         // 1. 从Redis获取AccessTokenDTO对象
         AccessTokenInfoVO accessToken = (AccessTokenInfoVO)redisTemplate.opsForValue().get(RedisKeyConstant.ACCESS_INFO);
+        if (accessToken == null) {
+            log.error("用户未授权或登录已过期，请重新登录");
+            return;
+        }
         String url = apiUrl + "/athlete/activities";
 
         // 构建请求头
