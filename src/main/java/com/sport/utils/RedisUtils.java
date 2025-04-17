@@ -33,7 +33,7 @@ public class RedisUtils {
                 if (!exists) {
                     // 如果不存在，则推入列表，并将 ID 存入 Set 中
                     String jsonData = objectMapper.writeValueAsString(data);
-                    redisTemplate.opsForList().rightPush(key, jsonData);
+                    redisTemplate.opsForList().leftPush(key, jsonData);
                     redisTemplate.opsForSet().add(key + ":ids", activityId);
                 }
             }

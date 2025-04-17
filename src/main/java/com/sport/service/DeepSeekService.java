@@ -137,8 +137,6 @@ public class DeepSeekService {
             if (accessToken == null) {
                 return;
             }
-            List<Activity> activities = stravaService.getActivities(1, 10, 0, 0);
-            redisTemplate.opsForValue().set(RedisKeyConstant.ACTIVITY_LIST + DateFormatUtils.format(new Date(), "yyyy-MM-dd"), activities, Duration.ofHours(24)); // 存24小时
             String advice = getTrainingSuggestion();
             redisTemplate.opsForValue().set(RedisKeyConstant.DAY_ADVICE + DateFormatUtils.format(new Date(), "yyyy-MM-dd"), advice, Duration.ofHours(24)); // 存24小时
         } catch (Exception e) {

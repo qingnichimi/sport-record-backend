@@ -23,6 +23,7 @@ import org.springframework.web.client.RestTemplate;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
@@ -77,7 +78,8 @@ public class StravaService {
         AccessTokenInfoVO responseBody = response.getBody();
         AccessTokenInfoVO accessTokenInfoVO = new AccessTokenInfoVO();
         if (responseBody != null) {
-            redisTemplate.opsForValue().set(RedisKeyConstant.ACCESS_INFO, responseBody);
+            redisTemplate.opsForValue().set(RedisKeyConstant.ACCESS_INFO, responseBody, responseBody.getExpiresIn() - REFRESH_THRESHOLD,
+                TimeUnit.SECONDS);
             accessTokenInfoVO.setRefreshToken(responseBody.getRefreshToken());
             accessTokenInfoVO.setAccessToken(responseBody.getAccessToken());
             accessTokenInfoVO.setExpiresAt(responseBody.getExpiresAt());
@@ -102,14 +104,11 @@ public class StravaService {
             restTemplate.exchange(oauthTokenUrl, HttpMethod.POST, entity, AccessTokenInfoVO.class);
         // 获取 access_token
         AccessTokenInfoVO responseBody = response.getBody();
-        AccessTokenInfoVO accessTokenInfoVO = new AccessTokenInfoVO();
         if (responseBody != null) {
-            redisTemplate.opsForValue().set(RedisKeyConstant.ACCESS_INFO, responseBody);
-            accessTokenInfoVO.setRefreshToken(responseBody.getRefreshToken());
-            accessTokenInfoVO.setAccessToken(responseBody.getAccessToken());
-            accessTokenInfoVO.setExpiresAt(responseBody.getExpiresAt());
+            redisTemplate.opsForValue().set(RedisKeyConstant.ACCESS_INFO, responseBody, responseBody.getExpiresIn() - REFRESH_THRESHOLD,
+                TimeUnit.SECONDS);
         }
-        return accessTokenInfoVO;
+        return responseBody;
     }
 
     public List<Activity> getActivities(int page, int perPage, int before, int after)
@@ -144,8 +143,9 @@ public class StravaService {
         return redisUtils.getList(RedisKeyConstant.ACTIVITY_LIST,page, perPage, Activity.class);
     }
 
-    @Scheduled(fixedDelay = 12 * 60 * 60 * 1000)
+    @Scheduled(fixedRate = 2 * 60 * 60 * 1000)
     public void getActivitiesTask() {
+        log.info("开始更新活动数据...");
         // 1. 从Redis获取AccessTokenDTO对象
         AccessTokenInfoVO accessToken =
             (AccessTokenInfoVO)redisTemplate.opsForValue().get(RedisKeyConstant.ACCESS_INFO);
@@ -173,6 +173,7 @@ public class StravaService {
         // 返回活动列表
         List<Activity> activityList = response.getBody();
         redisUtils.pushListWithDedup(RedisKeyConstant.ACTIVITY_LIST, activityList, Duration.ofDays(7), "id");
+        log.info("完成活动数据更新...");
     }
 
     // 存储Token
@@ -207,6 +208,7 @@ public class StravaService {
                 }
             }
         }
+        log.info("检查Token过期完成...");
     }
 
 }
