@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sport.constants.RedisKeyConstant;
 import com.sport.domain.Activity;
+import com.sport.utils.RedisUtils;
 import com.sport.vo.AccessTokenInfoVO;
 import org.apache.commons.lang3.time.DateFormatUtils;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -28,6 +29,8 @@ public class DeepSeekService {
     private StravaService stravaService;
     @Autowired
     private RedisTemplate redisTemplate;
+    @Autowired
+    private RedisUtils redisUtils;
 
     @Value("${deepseek.api.url}")
     private String apiUrl;
@@ -43,7 +46,7 @@ public class DeepSeekService {
         }
 
         // 2. 获取最近活动数据
-        List<Activity> activities = (List<Activity>)redisTemplate.opsForValue().get(RedisKeyConstant.ACTIVITY_LIST + DateFormatUtils.format(new Date(), "yyyy-MM-dd"));
+        List<Activity> activities = redisUtils.getList(RedisKeyConstant.ACTIVITY_LIST,1, 10, Activity.class);
         if (activities == null || activities.isEmpty()) {
             return "未找到最近的跑步活动记录";
         }
