@@ -156,7 +156,7 @@ public class StravaService {
         // 获取今天 0 点 和 明天 0 点（单位是秒）
         long after = LocalDate.now().atStartOfDay(ZoneId.systemDefault()).toEpochSecond();
         long before = LocalDate.now().plusDays(1).atStartOfDay(ZoneId.systemDefault()).toEpochSecond();
-        String url = apiUrl + "/athlete/activities?after=" + after + "&before=" + before + "&per_page=50";
+        String url = apiUrl + "/athlete/activities?" + "before=" + before + "&per_page=10";
 
         // 构建请求头
         HttpHeaders headers = new HttpHeaders();
