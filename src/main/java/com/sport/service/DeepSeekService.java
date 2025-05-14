@@ -46,7 +46,7 @@ public class DeepSeekService {
         }
 
         // 2. 获取最近活动数据
-        List<Activity> activities = redisUtils.getList(RedisKeyConstant.ACTIVITY_LIST,1, 10, Activity.class);
+        List<Activity> activities = redisUtils.getList(RedisKeyConstant.ACTIVITY_LIST,1, 1, Activity.class);
         if (activities == null || activities.isEmpty()) {
             return "未找到最近的跑步活动记录";
         }

@@ -7,6 +7,7 @@ import com.sport.domain.Activity;
 import com.sport.exception.AuthenticationFailedException;
 import com.sport.utils.RedisUtils;
 import com.sport.vo.AccessTokenInfoVO;
+import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -24,8 +25,11 @@ import java.time.Duration;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 @Service
 public class StravaService {
@@ -57,6 +61,12 @@ public class StravaService {
     private static final long REFRESH_THRESHOLD = 300; // 提前5分钟刷新
     @Autowired
     private RedisUtils redisUtils;
+
+    @PostConstruct
+    public void init() {
+        log.info("项目启动，执行一次全量活动数据拉取...");
+        getAllActivitiesTask();
+    }
 
     public AccessTokenInfoVO getAccessToken(String authorizationCode) throws JsonProcessingException {
         // 构建表单数据
@@ -113,15 +123,14 @@ public class StravaService {
 
     public List<Activity> getActivities(int page, int perPage, int before, int after)
         throws AuthenticationFailedException {
-
-        List<Activity> activities = redisUtils.getList(RedisKeyConstant.ACTIVITY_LIST,page, perPage, Activity.class);
-        if (activities != null && !activities.isEmpty()) {
-            return activities;
-        }
         AccessTokenInfoVO accessToken =
             (AccessTokenInfoVO)redisTemplate.opsForValue().get(RedisKeyConstant.ACCESS_INFO);
         if (accessToken == null) {
             throw new AuthenticationFailedException("认证信息失效");
+        }
+        List<Activity> activities = redisUtils.getList(RedisKeyConstant.ACTIVITY_LIST,page, perPage, Activity.class);
+        if (activities != null && !activities.isEmpty()) {
+            return activities;
         }
         String url = apiUrl + "/athlete/activities?page =" + 1 + " &per_page=50";
 
@@ -139,11 +148,12 @@ public class StravaService {
 
         // 返回活动列表
         List<Activity> activityList = response.getBody();
-        redisUtils.pushListWithDedup(RedisKeyConstant.ACTIVITY_LIST, activityList, Duration.ofDays(7), "id");
+        activityList = activityList.stream().sorted(Comparator.comparing(Activity::getStartDateLocal)).collect(Collectors.toList());
+        redisUtils.pushListWithDedup(RedisKeyConstant.ACTIVITY_LIST, activityList, null, "id");
         return redisUtils.getList(RedisKeyConstant.ACTIVITY_LIST,page, perPage, Activity.class);
     }
 
-    @Scheduled(fixedRate = 2 * 60 * 60 * 1000)
+    @Scheduled(fixedRate = 6 * 60 * 60 * 1000)
     public void getActivitiesTask() {
         log.info("开始更新活动数据...");
         // 1. 从Redis获取AccessTokenDTO对象
@@ -155,8 +165,8 @@ public class StravaService {
         }
         // 获取今天 0 点 和 明天 0 点（单位是秒）
         long after = LocalDate.now().atStartOfDay(ZoneId.systemDefault()).toEpochSecond();
-        long before = LocalDate.now().plusDays(1).atStartOfDay(ZoneId.systemDefault()).toEpochSecond();
-        String url = apiUrl + "/athlete/activities?" + "before=" + before + "&per_page=10";
+        long before = LocalDate.now().plusDays(2).atStartOfDay(ZoneId.systemDefault()).toEpochSecond();
+        String url = apiUrl + "/athlete/activities?" + "before=" + before + "&per_page=30";
 
         // 构建请求头
         HttpHeaders headers = new HttpHeaders();
@@ -172,11 +182,70 @@ public class StravaService {
 
         // 返回活动列表
         List<Activity> activityList = response.getBody();
-        redisUtils.pushListWithDedup(RedisKeyConstant.ACTIVITY_LIST, activityList, Duration.ofDays(7), "id");
+        activityList = activityList.stream().sorted(Comparator.comparing(Activity::getStartDateLocal)).collect(Collectors.toList());
+        redisUtils.pushListWithDedup(RedisKeyConstant.ACTIVITY_LIST, activityList, null, "id");
         log.info("完成活动数据更新...");
     }
 
-    // 存储Token
+    public void getAllActivitiesTask() {
+        if (redisTemplate.hasKey(RedisKeyConstant.ACTIVITY_LIST)) {
+            log.info("活动数据已存在，跳过全量更新");
+            return;
+        }
+        log.info("开始全量更新活动数据...");
+
+        AccessTokenInfoVO accessToken =
+            (AccessTokenInfoVO) redisTemplate.opsForValue().get(RedisKeyConstant.ACCESS_INFO);
+        if (accessToken == null) {
+            log.error("用户未授权或登录已过期，请重新登录");
+            return;
+        }
+
+        String urlBase = apiUrl + "/athlete/activities";
+        HttpHeaders headers = new HttpHeaders();
+        headers.set("Authorization", "Bearer " + accessToken.getAccessToken());
+        HttpEntity<MultiValueMap<String, String>> entity = new HttpEntity<>(headers);
+
+        int page = 1;
+        int perPage = 200;
+        List<Activity> allActivities = new ArrayList<>();
+
+        while (true) {
+            String url = urlBase + "?per_page=" + perPage + "&page=" + page;
+            ResponseEntity<List<Activity>> response = restTemplate.exchange(
+                url,
+                HttpMethod.GET,
+                entity,
+                new ParameterizedTypeReference<List<Activity>>() {}
+            );
+
+            List<Activity> activityList = response.getBody();
+            if (activityList == null || activityList.isEmpty()) {
+                break; // 没有更多数据了
+            }
+
+            allActivities.addAll(activityList);
+            log.info("已获取第 {} 页，共 {} 条", page, activityList.size());
+            page++;
+
+            // 为避免触发 rate limit，可适当 sleep
+            try {
+                Thread.sleep(500); // 0.5 秒
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }
+
+        // 按时间排序 + 去重 + 存入 Redis
+        allActivities = allActivities.stream()
+            .sorted(Comparator.comparing(Activity::getStartDateLocal))
+            .collect(Collectors.toList());
+
+        redisUtils.pushListWithDedup(RedisKeyConstant.ACTIVITY_LIST, allActivities, null, "id");
+
+        log.info("完成 {} 条活动数据的全量更新。", allActivities.size());
+    }
+
     public void storeToken(AccessTokenInfoVO tokenInfo) {
         String key = RedisKeyConstant.ACCESS_INFO;
         redisTemplate.opsForValue()
@@ -184,31 +253,22 @@ public class StravaService {
                 TimeUnit.SECONDS);
     }
 
-    // 每5分钟检查一次
     @Scheduled(fixedRate = 2 * 60 * 60 * 1000)
     public void refreshTokens() {
-        log.info("开始检查Token过期情况...");
         AccessTokenInfoVO accessToken =
             (AccessTokenInfoVO)redisTemplate.opsForValue().get(RedisKeyConstant.ACCESS_INFO);
         if (accessToken != null) {
-            // 检查是否即将过期(剩余时间小于阈值)
-            long remainingTime = accessToken.getExpiresAt() - System.currentTimeMillis() / 1000;
-
-            if (remainingTime < REFRESH_THRESHOLD) {
-                log.info("Token即将过期，开始刷新...");
-                try {
-                    // 使用refreshToken获取新Token
-                    AccessTokenInfoVO newToken = refreshAccessToken(accessToken.getRefreshToken());
-
-                    // 更新存储
-                    storeToken(newToken);
-                    log.info("Token刷新成功");
-                } catch (Exception e) {
-                    log.error("Token刷新失败: {}", e.getMessage());
-                }
+            try {
+                // 使用refreshToken获取新Token
+                AccessTokenInfoVO newToken = refreshAccessToken(accessToken.getRefreshToken());
+                // 更新存储
+                storeToken(newToken);
+                log.info("Token刷新成功");
+            } catch (Exception e) {
+                log.error("Token刷新失败: {}", e.getMessage());
             }
         }
-        log.info("检查Token过期完成...");
+        log.info("检查Token完成...");
     }
 
 }
