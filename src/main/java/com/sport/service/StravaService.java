@@ -1,7 +1,6 @@
 package com.sport.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sport.constants.RedisKeyConstant;
 import com.sport.domain.Activity;
 import com.sport.exception.AuthenticationFailedException;
@@ -21,10 +20,8 @@ import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestTemplate;
 
-import java.time.Duration;
 import java.time.LocalDate;
 import java.time.ZoneId;
-import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -54,9 +51,6 @@ public class StravaService {
 
     @Autowired
     private RedisTemplate redisTemplate;
-
-    @Autowired
-    private ObjectMapper objectMapper;
 
     private static final long REFRESH_THRESHOLD = 300; // 提前5分钟刷新
     @Autowired
@@ -88,8 +82,7 @@ public class StravaService {
         AccessTokenInfoVO responseBody = response.getBody();
         AccessTokenInfoVO accessTokenInfoVO = new AccessTokenInfoVO();
         if (responseBody != null) {
-            redisTemplate.opsForValue().set(RedisKeyConstant.ACCESS_INFO, responseBody, responseBody.getExpiresIn() - REFRESH_THRESHOLD,
-                TimeUnit.SECONDS);
+            redisTemplate.opsForValue().set(RedisKeyConstant.ACCESS_INFO, responseBody);
             accessTokenInfoVO.setRefreshToken(responseBody.getRefreshToken());
             accessTokenInfoVO.setAccessToken(responseBody.getAccessToken());
             accessTokenInfoVO.setExpiresAt(responseBody.getExpiresAt());
@@ -115,8 +108,7 @@ public class StravaService {
         // 获取 access_token
         AccessTokenInfoVO responseBody = response.getBody();
         if (responseBody != null) {
-            redisTemplate.opsForValue().set(RedisKeyConstant.ACCESS_INFO, responseBody, responseBody.getExpiresIn() - REFRESH_THRESHOLD,
-                TimeUnit.SECONDS);
+            redisTemplate.opsForValue().set(RedisKeyConstant.ACCESS_INFO, responseBody);
         }
         return responseBody;
     }
@@ -248,9 +240,7 @@ public class StravaService {
 
     public void storeToken(AccessTokenInfoVO tokenInfo) {
         String key = RedisKeyConstant.ACCESS_INFO;
-        redisTemplate.opsForValue()
-            .set(key, tokenInfo, tokenInfo.getExpiresIn() - REFRESH_THRESHOLD, // 设置比实际过期时间短的Redis过期
-                TimeUnit.SECONDS);
+        redisTemplate.opsForValue().set(key, tokenInfo);
     }
 
     @Scheduled(fixedRate = 2 * 60 * 60 * 1000)
