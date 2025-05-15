@@ -6,15 +6,16 @@ server:
 spring:
   jackson:
     date-format: yyyy-MM-dd HH:mm:ss  # 设置全局日期格式
-  redis:
-    host: 192.168.1.13
-    port: 16379
-    password:  # 如果没有密码，这行可以省略
-    lettuce:
-      pool:
-        max-active: 8
-        max-idle: 8
-        min-idle: 0
+  data:
+    redis:
+      host: 192.168.1.13
+      port: 16379
+      password: pwd
+      lettuce:
+        pool:
+          max-active: 8
+          max-idle: 8
+          min-idle: 0
 logging:
   level:
     root: INFO  # 设置根日志级别

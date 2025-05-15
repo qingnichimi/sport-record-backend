@@ -3,17 +3,6 @@ server:
   servlet:
     context-path: /sport  # 设置应用的上下文路径
 spring:
-  jackson:
-    date-format: yyyy-MM-dd HH:mm:ss  # 设置全局日期格式
-  redis:
-    host: localhost
-    port: 6379
-    password:  # 如果没有密码，这行可以省略
-    lettuce:
-      pool:
-        max-active: 8
-        max-idle: 8
-        min-idle: 0
   profiles:
     active: dev
 logging:
@@ -21,14 +10,4 @@ logging:
     root: INFO  # 设置根日志级别
     org.springframework.web.client.RestTemplate: DEBUG
     org.springframework.http: DEBUG
-strava:
-  client-id: YOUR-CLIENT-ID
-  client-secret: YOUR-CLIENT-SECRET
-  redirect-uri: YOUR-REDIRECT-URI
-  oauth-token-url: https://www.strava.com/oauth/token
-  api-url: https://www.strava.com/api/v3
-deepseek:
-  api:
-    url: https://api.deepseek.com/v1/chat/completions
-    key: YOUR-KEY
 
