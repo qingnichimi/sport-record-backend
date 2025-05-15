@@ -240,9 +240,7 @@ public class StravaService {
 
     public void storeToken(AccessTokenInfoVO tokenInfo) {
         String key = RedisKeyConstant.ACCESS_INFO;
-        redisTemplate.opsForValue()
-            .set(key, tokenInfo, tokenInfo.getExpiresIn() - REFRESH_THRESHOLD, // 设置比实际过期时间短的Redis过期
-                TimeUnit.SECONDS);
+        redisTemplate.opsForValue().set(key, tokenInfo);
     }
 
     @Scheduled(fixedRate = 2 * 60 * 60 * 1000)
