@@ -5,6 +5,7 @@ import com.sport.domain.Activity;
 import com.sport.domain.CommonResult;
 import com.sport.service.StravaService;
 import com.sport.vo.AccessTokenInfoVO;
+import com.sport.vo.ActivityStatisticsVO;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
@@ -43,5 +44,11 @@ public class StravaController {
         @RequestParam(required = false, defaultValue = "999") int pageSize) {
         List<Activity> list = stravaService.getActivities(pageNum, pageSize, 0, 0);
         return CommonResult.success(list);
+    }
+
+    @GetMapping("/athlete/activity/statistics")
+    public CommonResult getActivityStatistics() {
+        ActivityStatisticsVO res = stravaService.getActivityStatistics();
+        return CommonResult.success(res);
     }
 }

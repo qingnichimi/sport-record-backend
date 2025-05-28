@@ -6,7 +6,9 @@ import com.sport.domain.Activity;
 import com.sport.exception.AuthenticationFailedException;
 import com.sport.utils.RedisUtils;
 import com.sport.vo.AccessTokenInfoVO;
+import com.sport.vo.ActivityStatisticsVO;
 import jakarta.annotation.PostConstruct;
+import org.apache.commons.lang3.time.DateUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -21,11 +23,9 @@ import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestTemplate;
 
 import java.time.LocalDate;
+import java.time.Year;
 import java.time.ZoneId;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.List;
-import java.util.concurrent.TimeUnit;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
@@ -59,7 +59,7 @@ public class StravaService {
     @PostConstruct
     public void init() {
         log.info("项目启动，执行一次全量活动数据拉取...");
-        getAllActivitiesTask();
+//        getAllActivitiesTask();
     }
 
     public AccessTokenInfoVO getAccessToken(String authorizationCode) throws JsonProcessingException {
@@ -261,4 +261,26 @@ public class StravaService {
         log.info("检查Token完成...");
     }
 
+    public ActivityStatisticsVO getActivityStatistics() {
+        List<Activity> activities = redisUtils.getList(RedisKeyConstant.ACTIVITY_LIST, 1, 999, Activity.class);
+        if (activities == null || activities.isEmpty()) {
+            return new ActivityStatisticsVO(0,0,0,0);
+        }
+
+        double currentYearDistance = activities.stream()
+            .filter(a -> DateUtils.truncatedCompareTo(a.getStartDateLocal(), new Date(), Calendar.YEAR) == 0)
+            .mapToDouble(Activity::getDistance)
+            .sum() / 1000;
+        // 城市统计
+        long cityCount = activities.stream()
+            .map(Activity::getCity)
+            .filter(Objects::nonNull)
+            .distinct()
+            .count();
+        // 距离统计
+        double totalDistance = activities.stream()
+            .mapToDouble(Activity::getDistance)
+            .sum() / 1000;
+        return new ActivityStatisticsVO(activities.size(),totalDistance,currentYearDistance,cityCount);
+    }
 }
