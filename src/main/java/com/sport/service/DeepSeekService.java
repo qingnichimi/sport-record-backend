@@ -129,7 +129,7 @@ public class DeepSeekService {
         return String.format("%d分%02d秒", (int)paceSeconds / 60, (int)paceSeconds % 60);
     }
 
-    @Scheduled(cron = "0 0 8 * * ?") // 每天早上8点执行
+//    @Scheduled(cron = "0 0 8 * * ?") // 每天早上8点执行
     public void generateDailyAdvice() {
         try {
             // 1. 从Redis获取AccessTokenDTO对象

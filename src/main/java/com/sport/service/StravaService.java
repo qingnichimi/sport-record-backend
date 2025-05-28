@@ -243,7 +243,7 @@ public class StravaService {
         redisTemplate.opsForValue().set(key, tokenInfo);
     }
 
-    @Scheduled(fixedRate = 2 * 60 * 60 * 1000)
+    @Scheduled(fixedRate = 6 * 60 * 60 * 1000)
     public void refreshTokens() {
         AccessTokenInfoVO accessToken =
             (AccessTokenInfoVO)redisTemplate.opsForValue().get(RedisKeyConstant.ACCESS_INFO);
