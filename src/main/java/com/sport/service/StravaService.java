@@ -22,8 +22,9 @@ import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestTemplate;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
-import java.time.Year;
 import java.time.ZoneId;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -59,7 +60,7 @@ public class StravaService {
     @PostConstruct
     public void init() {
         log.info("项目启动，执行一次全量活动数据拉取...");
-//        getAllActivitiesTask();
+        getAllActivitiesTask();
     }
 
     public AccessTokenInfoVO getAccessToken(String authorizationCode) throws JsonProcessingException {
@@ -264,23 +265,90 @@ public class StravaService {
     public ActivityStatisticsVO getActivityStatistics() {
         List<Activity> activities = redisUtils.getList(RedisKeyConstant.ACTIVITY_LIST, 1, 999, Activity.class);
         if (activities == null || activities.isEmpty()) {
-            return new ActivityStatisticsVO(0,0,0,0);
+            return new ActivityStatisticsVO(0, 0, 0, 0,
+                Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap());
         }
 
-        double currentYearDistance = activities.stream()
-            .filter(a -> DateUtils.truncatedCompareTo(a.getStartDateLocal(), new Date(), Calendar.YEAR) == 0)
-            .mapToDouble(Activity::getDistance)
-            .sum() / 1000;
-        // 城市统计
+        Date now = new Date();
+        Calendar cal = Calendar.getInstance();
+
+        // 总距离（km），保留两位小数
+        double totalDistance = roundToTwoDecimal(
+            activities.stream()
+                .mapToDouble(Activity::getDistance)
+                .sum() / 1000
+        );
+
+        // 当前年距离（km），保留两位小数
+        double currentYearDistance = roundToTwoDecimal(
+            activities.stream()
+                .filter(a -> DateUtils.truncatedCompareTo(a.getStartDateLocal(), now, Calendar.YEAR) == 0)
+                .mapToDouble(Activity::getDistance)
+                .sum() / 1000
+        );
+
+        // 城市数量（非 null 且去重）
         long cityCount = activities.stream()
             .map(Activity::getCity)
             .filter(Objects::nonNull)
             .distinct()
             .count();
-        // 距离统计
-        double totalDistance = activities.stream()
-            .mapToDouble(Activity::getDistance)
-            .sum() / 1000;
-        return new ActivityStatisticsVO(activities.size(),totalDistance,currentYearDistance,cityCount);
+
+        // 每年距离统计（保留两位小数）
+        Map<Integer, Double> distanceByYear = activities.stream()
+            .filter(a -> a.getStartDateLocal() != null)
+            .collect(Collectors.groupingBy(
+                a -> {
+                    cal.setTime(a.getStartDateLocal());
+                    return cal.get(Calendar.YEAR);
+                },
+                Collectors.collectingAndThen(
+                    Collectors.summingDouble(a -> a.getDistance() / 1000),
+                    this::roundToTwoDecimal
+                )
+            ));
+
+        // 按类型统计距离（保留两位小数）
+        Map<String, Double> distanceByType = activities.stream()
+            .filter(a -> a.getType() != null)
+            .collect(Collectors.groupingBy(
+                Activity::getType,
+                Collectors.collectingAndThen(
+                    Collectors.summingDouble(a -> a.getDistance() / 1000),
+                    this::roundToTwoDecimal
+                )
+            ));
+
+        // 按【年份+类型】统计距离（保留两位小数）
+        Map<String, Double> distanceByYearAndType = activities.stream()
+            .filter(a -> a.getStartDateLocal() != null && a.getType() != null)
+            .collect(Collectors.groupingBy(
+                a -> {
+                    cal.setTime(a.getStartDateLocal());
+                    return cal.get(Calendar.YEAR) + "-" + a.getType();
+                },
+                Collectors.collectingAndThen(
+                    Collectors.summingDouble(a -> a.getDistance() / 1000),
+                    this::roundToTwoDecimal
+                )
+            ));
+
+        return new ActivityStatisticsVO(
+            activities.size(),
+            totalDistance,
+            currentYearDistance,
+            cityCount,
+            distanceByYear,
+            distanceByType,
+            distanceByYearAndType
+        );
     }
+
+    /**
+     * 保留两位小数，四舍五入
+     */
+    private double roundToTwoDecimal(double value) {
+        return BigDecimal.valueOf(value).setScale(2, RoundingMode.HALF_UP).doubleValue();
+    }
+
 }

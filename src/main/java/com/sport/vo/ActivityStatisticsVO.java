@@ -1,5 +1,8 @@
 package com.sport.vo;
 
-public record ActivityStatisticsVO(long totalActivities, double totalDistance,
-                                   double currentYearDistance, double totalCity) {
+import java.util.Map;
+
+public record ActivityStatisticsVO(long totalActivities, double totalDistance, double currentYearDistance,
+                                   double totalCity, Map distanceByYear, Map distanceByType,
+                                   Map distanceByYearAndType) {
 }
